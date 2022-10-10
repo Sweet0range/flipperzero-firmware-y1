@@ -3,6 +3,7 @@
 #include <storage/storage.h>
 #include <lib/flipper_format/flipper_format.h>
 #include <lib/nfc/protocols/nfca.h>
+#include <lib/nfc/helpers/mf_classic_dict.h>
 #include <lib/digital_signal/digital_signal.h>
 
 #include <lib/flipper_format/flipper_format_i.h>
@@ -52,14 +53,15 @@ static bool nfc_test_read_signal_from_file(const char* file_name) {
     bool success = false;
 
     FlipperFormat* file = flipper_format_file_alloc(nfc_test->storage);
-    string_t file_type;
-    string_init(file_type);
+    FuriString* file_type;
+    file_type = furi_string_alloc();
     uint32_t file_version = 0;
 
     do {
         if(!flipper_format_file_open_existing(file, file_name)) break;
         if(!flipper_format_read_header(file, file_type, &file_version)) break;
-        if(string_cmp_str(file_type, nfc_test_file_type) || file_version != nfc_test_file_version)
+        if(furi_string_cmp_str(file_type, nfc_test_file_type) ||
+           file_version != nfc_test_file_version)
             break;
         if(!flipper_format_read_uint32(file, "Data length", &nfc_test->test_data_len, 1)) break;
         if(nfc_test->test_data_len > NFC_TEST_DATA_MAX_LEN) break;
@@ -75,7 +77,7 @@ static bool nfc_test_read_signal_from_file(const char* file_name) {
         success = true;
     } while(false);
 
-    string_clear(file_type);
+    furi_string_free(file_type);
     flipper_format_free(file);
 
     return success;
@@ -110,7 +112,7 @@ static bool nfc_test_digital_signal_test_encode(
         // Check timings
         if(time > encode_max_time) {
             FURI_LOG_E(
-                TAG, "Encoding time: %d us while accepted value: %d us", time, encode_max_time);
+                TAG, "Encoding time: %ld us while accepted value: %ld us", time, encode_max_time);
             break;
         }
 
@@ -130,7 +132,7 @@ static bool nfc_test_digital_signal_test_encode(
             ref_timings_sum += ref[i];
             if(timings_diff > timing_tolerance) {
                 FURI_LOG_E(
-                    TAG, "Too big differece in %d timings. Ref: %d, DUT: %d", i, ref[i], dut[i]);
+                    TAG, "Too big differece in %d timings. Ref: %ld, DUT: %ld", i, ref[i], dut[i]);
                 timing_check_success = false;
                 break;
             }
@@ -141,16 +143,16 @@ static bool nfc_test_digital_signal_test_encode(
         if(sum_diff > timings_sum_tolerance) {
             FURI_LOG_E(
                 TAG,
-                "Too big difference in timings sum. Ref: %d, DUT: %d",
+                "Too big difference in timings sum. Ref: %ld, DUT: %ld",
                 ref_timings_sum,
                 dut_timings_sum);
             break;
         }
 
-        FURI_LOG_I(TAG, "Encoding time: %d us. Acceptable time: %d us", time, encode_max_time);
+        FURI_LOG_I(TAG, "Encoding time: %ld us. Acceptable time: %ld us", time, encode_max_time);
         FURI_LOG_I(
             TAG,
-            "Timings sum difference: %d [1/64MHZ]. Acceptable difference: %d [1/64MHz]",
+            "Timings sum difference: %ld [1/64MHZ]. Acceptable difference: %ld [1/64MHz]",
             sum_diff,
             timings_sum_tolerance);
         success = true;
@@ -170,10 +172,59 @@ MU_TEST(nfc_digital_signal_test) {
         "NFC long digital signal test failed\r\n");
 }
 
+MU_TEST(mf_classic_dict_test) {
+    MfClassicDict* instance = NULL;
+    uint64_t key = 0;
+    FuriString* temp_str;
+    temp_str = furi_string_alloc();
+
+    instance = mf_classic_dict_alloc(MfClassicDictTypeUnitTest);
+    mu_assert(instance != NULL, "mf_classic_dict_alloc\r\n");
+
+    mu_assert(
+        mf_classic_dict_get_total_keys(instance) == 0,
+        "mf_classic_dict_get_total_keys == 0 assert failed\r\n");
+
+    furi_string_set(temp_str, "2196FAD8115B");
+    mu_assert(
+        mf_classic_dict_add_key_str(instance, temp_str),
+        "mf_classic_dict_add_key == true assert failed\r\n");
+
+    mu_assert(
+        mf_classic_dict_get_total_keys(instance) == 1,
+        "mf_classic_dict_get_total_keys == 1 assert failed\r\n");
+
+    mu_assert(mf_classic_dict_rewind(instance), "mf_classic_dict_rewind == 1 assert failed\r\n");
+
+    mu_assert(
+        mf_classic_dict_get_key_at_index_str(instance, temp_str, 0),
+        "mf_classic_dict_get_key_at_index_str == true assert failed\r\n");
+    mu_assert(
+        furi_string_cmp(temp_str, "2196FAD8115B") == 0,
+        "string_cmp(temp_str, \"2196FAD8115B\") == 0 assert failed\r\n");
+
+    mu_assert(mf_classic_dict_rewind(instance), "mf_classic_dict_rewind == 1 assert failed\r\n");
+
+    mu_assert(
+        mf_classic_dict_get_key_at_index(instance, &key, 0),
+        "mf_classic_dict_get_key_at_index == true assert failed\r\n");
+    mu_assert(key == 0x2196FAD8115B, "key == 0x2196FAD8115B assert failed\r\n");
+
+    mu_assert(mf_classic_dict_rewind(instance), "mf_classic_dict_rewind == 1 assert failed\r\n");
+
+    mu_assert(
+        mf_classic_dict_delete_index(instance, 0),
+        "mf_classic_dict_delete_index == true assert failed\r\n");
+
+    mf_classic_dict_free(instance);
+    furi_string_free(temp_str);
+}
+
 MU_TEST_SUITE(nfc) {
     nfc_test_alloc();
 
     MU_RUN_TEST(nfc_digital_signal_test);
+    MU_RUN_TEST(mf_classic_dict_test);
 
     nfc_test_free();
 }

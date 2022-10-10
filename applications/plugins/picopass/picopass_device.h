@@ -7,8 +7,8 @@
 #include <mbedtls/des.h>
 
 #include "rfal_picopass.h"
-#include "loclass/optimized_ikeys.h"
-#include "loclass/optimized_cipher.h"
+#include <optimized_ikeys.h>
+#include <optimized_cipher.h>
 
 #define PICOPASS_DEV_NAME_MAX_LEN 22
 #define PICOPASS_READER_DATA_MAX_SIZE 64
@@ -47,6 +47,7 @@ typedef struct {
 typedef struct {
     bool legacy;
     bool se_enabled;
+    bool sio;
     bool biometrics;
     uint8_t pin_length;
     PicopassEncryption encryption;
@@ -70,7 +71,7 @@ typedef struct {
     DialogsApp* dialogs;
     PicopassDeviceData dev_data;
     char dev_name[PICOPASS_DEV_NAME_MAX_LEN + 1];
-    string_t load_path;
+    FuriString* load_path;
     PicopassDeviceSaveFormat format;
     PicopassLoadingCallback loading_cb;
     void* loading_cb_ctx;
