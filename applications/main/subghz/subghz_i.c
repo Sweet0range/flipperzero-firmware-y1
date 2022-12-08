@@ -454,6 +454,7 @@ bool subghz_load_protocol_from_file(SubGhz* subghz) {
 
     DialogsFileBrowserOptions browser_options;
     dialog_file_browser_set_basic_options(&browser_options, SUBGHZ_APP_EXTENSION, &I_sub1_10px);
+    browser_options.base_path = SUBGHZ_APP_FOLDER;
 
     // Input events and views are managed by file_select
     bool res = dialog_file_browser_show(
@@ -487,6 +488,23 @@ bool subghz_rename_file(SubGhz* subghz) {
     }
     furi_record_close(RECORD_STORAGE);
 
+    return ret;
+}
+
+bool subghz_file_available(SubGhz* subghz) {
+    furi_assert(subghz);
+    bool ret = true;
+    Storage* storage = furi_record_open(RECORD_STORAGE);
+
+    FS_Error fs_result =
+        storage_common_stat(storage, furi_string_get_cstr(subghz->file_path), NULL);
+
+    if(fs_result != FSE_OK) {
+        dialog_message_show_storage_error(subghz->dialogs, "File not available\n file/directory");
+        ret = false;
+    }
+
+    furi_record_close(RECORD_STORAGE);
     return ret;
 }
 
